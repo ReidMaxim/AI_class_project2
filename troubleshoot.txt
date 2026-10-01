@@ -1,0 +1,46 @@
+┌─[silk@parrot]─[~]
+└──╼ $curl --noproxy '*' --max-time 10 http://10.129.132.118/
+curl: (28) Operation timed out after 10002 milliseconds with 0 out of 19386 bytes received
+┌─[✗]─[silk@parrot]─[~]
+└──╼ $
+
+Duck.ai said
+
+The identical failure on the new instance means the target reset did not solve it. Your connection reaches the web server, but the response body is being lost between the server and your machine—most likely a VPN path/MTU issue.
+
+Try lowering the VPN interface MTU:
+bash
+
+sudo ip link set dev tun0 mtu 1200
+
+Then test the new IP again:
+bash
+
+curl --noproxy '*' --max-time 10 http://10.129.132.118/
+
+If it works, Firefox should also load:
+text
+
+http://10.129.132.118/
+
+You can confirm the interface setting with:
+bash
+
+ip link show tun0
+
+sudo ip link set dev tun0 mtu 1200
+this was the fix! what was causing the issue?
+Duck.ai said
+
+The issue was a VPN path MTU problem.
+
+MTU is the largest packet that can travel through an interface without being fragmented. Your HTB VPN path was likely unable to properly carry larger TCP packets because of VPN encapsulation or blocked Path MTU Discovery. This is sometimes called a PMTU black hole.
+
+That explains the behavior:
+
+Small packets, such as TCP handshakes and HTTP headers, arrived normally. 
+
+The server began sending the larger HTML response.
+Those packets were dropped somewhere along the VPN path.
+curl received 0 out of 19386 bytes and waited until timing out.
+Lowering tun0 to 1200 forced your system to use smaller packets that successfully fit through the VPN path.
